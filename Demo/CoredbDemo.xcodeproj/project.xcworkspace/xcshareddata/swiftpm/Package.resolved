@@ -1,0 +1,15 @@
+{
+  "originHash" : "55f863c0fc208d800ef56b07fd0a8c3467735117d3d1e5f5c7c89f638d236209",
+  "pins" : [
+    {
+      "identity" : "swift-promise",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sutext/swift-promise",
+      "state" : {
+        "revision" : "9e60dc738358d8edafdcf143b83b000816f1e567",
+        "version" : "1.5.1"
+      }
+    }
+  ],
+  "version" : 3
+}
