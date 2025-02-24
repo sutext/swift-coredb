@@ -90,7 +90,6 @@ open class Coredb:@unchecked Sendable{
                 }
             }
         }
-        
     }
 }
 //MARK: public sync methods
@@ -203,7 +202,7 @@ extension Coredb{
     /// - Important: This method will all auto save context
     ///
     @discardableResult
-    public func insert<E:Entityable>(_ type:E.Type,input:E.Input)->Promise<E>{
+    public func insert<E:Entityable>(_ type:E.Type = E.self,input:E.Input)->Promise<E>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
@@ -230,11 +229,7 @@ extension Coredb{
     /// - Important: This method will all auto save context
     ///
     @discardableResult
-    public func insert<E:Entityable>(
-        _ type:E.Type,
-        inputs:[E.Input],
-        orderby:Orderby? = nil) ->Promise<[E]>
-    {
+    public func insert<E:Entityable>(_ type:E.Type = E.self,inputs:[E.Input],orderby:Orderby? = nil) ->Promise<[E]>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
@@ -279,12 +274,7 @@ extension Coredb{
     /// - Returns: The managed entities matching the predicate
     /// - Important: This method will perform in moc queue
     ///
-    public func query<E:Entityable>(
-        _ type:E.Type,
-        where:Where?=nil,
-        page:Pager?=nil,
-        orderby:Orderby? = nil) -> Promise<[E]>
-    {
+    public func query<E:Entityable>(_ type:E.Type = E.self,where:Where?=nil,page:Pager?=nil,orderby:Orderby? = nil) -> Promise<[E]>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
@@ -332,12 +322,7 @@ extension Coredb{
     /// - Important: This method will all auto save context
     ///
     @discardableResult
-    public func overlay<E:Entityable>(
-        _ type:E.Type = E.self,
-        inputs:[E.Input],
-        where:Where? = nil,
-        orderby:Orderby? = nil)->Promise<[E]>
-    {
+    public func overlay<E:Entityable>(_ type:E.Type = E.self,inputs:[E.Input],where:Where? = nil,orderby:Orderby? = nil)->Promise<[E]>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{

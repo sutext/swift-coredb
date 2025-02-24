@@ -34,14 +34,14 @@ struct FirstTestView: View ,Sendable{
     @State var models:[UserObject] = []
     var body: some View {
         NavigationView {
-//            Table(models){
-//                TableColumn("title"){ m in
-//                    ItemView(model: m)
-//                }
-//            }
-            List(models){m in
-                ItemView(model: m)
+            Table(models){
+                TableColumn("title"){ m in
+                    ItemView(model: m)
+                }
             }
+//            List(models){m in
+//                ItemView(model: m)
+//            }
             .toolbar(content: {
                 ToolbarItem(placement: .principal) { // 主标题
                     Text("标题")
@@ -59,13 +59,13 @@ struct FirstTestView: View ,Sendable{
             })
         }
         .onAppear {
-            orm.query(UserObject.self,where:.init(format: "id=%@", "")).then { ms in
+            orm.query(UserObject.self).then { ms in
                 await update(ms)
             }
         }
     }
-    func update(_ modles:[UserObject]){
-        self.models = models
+    func update(_ ms:[UserObject]){
+        self.models = ms
     }
     func addData(){
         let u = UserObject()
@@ -75,11 +75,15 @@ struct FirstTestView: View ,Sendable{
         let user = self.randomUser()
         orm.insert(UserObject.self, input: user).then { user in
             await append(user)
+        }.catch { err in
+            await alert(err)
         }
+    }
+    func alert(_ error:Error){
         
     }
     func append(_ user:UserObject){
-
+        self.models.append(user)
     }
     func modifyData(){
         
