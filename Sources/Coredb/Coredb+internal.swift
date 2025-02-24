@@ -23,14 +23,14 @@ extension Coredb{
             throw error
         }
     }
-    func _query<E:Entityable>(one type:E.Type,id:E.ID)->E?{
+    func _query<E:Entityable>(one type:E.Type,id:E.ID)throws->E?{
         if id.string.isEmpty{
             return nil
         }
         let request = type.fetchRequest()
         request.predicate = NSPredicate(format:"id == %@",id.string)
         request.fetchLimit = 2
-        guard let obj = try? self.moc.fetch(request).first else{
+        guard let obj = try self.moc.fetch(request).first else{
             return nil
         }
         let result = type.init()

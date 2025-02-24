@@ -61,10 +61,6 @@ open class Coredb:@unchecked Sendable{
     open func configure(for moc:NSManagedObjectContext){
         
     }
-    /// promise callback queue if provided. if nil  use `NSManagedObjectContext` private queue.
-    open func callbackQueue()->DispatchQueue?{
-        nil
-    }
     /// Override this method for custom logger
     open func print(_ items:Any... ,line:Int = #line ,file:String = #file){
         Swift.print("line:\(line)","file:\(file)",items,separator: "|")
@@ -80,54 +76,57 @@ open class Coredb:@unchecked Sendable{
     ///         }
     ///
     @discardableResult
-    public func transaction<T:Sendable>(_ block: @escaping (Handler) throws -> T) async throws -> T{
-        try await withCheckedThrowingContinuation { cont in
+    public func transaction<T:Sendable>(_ block: @Sendable @escaping (Handler) throws -> T)->Promise<T>{
+        Promise{resolve,reject in
             self.moc.perform {
-                do {
+                do{
                     let result = try block(Handler(self))
                     if self.moc.hasChanges{
                         try self.moc.save()
                     }
-                    cont.resume(returning: result)
+                    resolve(result)
                 }catch{
-                    self.moc.rollback()
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
+        
     }
 }
 //MARK: public sync methods
 extension Coredb{
-    public func save() async throws {
-        try await withCheckedThrowingContinuation { cont in
+    @discardableResult
+    public func save() -> Promise<Void> {
+        Promise{resolve,reject in
             self.moc.perform {
                 do{
                     try self._save()
-                    cont.resume(returning: ())
+                    resolve(())
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
     }
-    public func flush<E:Entityable>(_ entity:E,save:Bool = true) async throws{
-        try await withCheckedThrowingContinuation { cont in
+    @discardableResult
+    public func flush<E:Entityable>(_ entity:E,save:Bool = true)->Promise<Void>{
+        Promise{resolve,reject in
             self.moc.perform {
                 do{
                     try self._flush(entity)
                     if save{
                         try self._save()
                     }
-                    cont.resume(returning: ())
+                    resolve(())
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
     }
-    public func flush<E:Entityable>(_ entities:[E],save:Bool = true)async throws{
-        try await withCheckedThrowingContinuation { cont in
+    @discardableResult
+    public func flush<E:Entityable>(_ entities:[E],save:Bool = true)->Promise<Void>{
+        Promise{resolve,reject in
             self.moc.perform {
                 do{
                     try entities.forEach { obj in
@@ -136,9 +135,9 @@ extension Coredb{
                     if save{
                         try self._save()
                     }
-                    cont.resume(returning: ())
+                    resolve(())
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
@@ -149,16 +148,19 @@ extension Coredb{
     ///     - object: The instance that will be delete
     /// - Warning: This method must be around by update(save:closure:)
     ///
-    public func delete<E:Entityable>(_ entity:E?)async throws {
-        guard let entity = entity?.reffer else { return }
-        try await withCheckedThrowingContinuation { cont in
+    @discardableResult
+    public func delete<E:Entityable>(_ entity:E?)->Promise<Void>{
+        guard let entity = entity?.reffer else {
+            return .init()
+        }
+        return Promise{resolve,reject in
             self.moc.perform {
                 do{
                     self.moc.delete(entity)
                     try self._save()
-                    cont.resume(returning: ())
+                    resolve(())
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
@@ -169,11 +171,12 @@ extension Coredb{
     ///     - entities: The instance array that will be delete
     /// - Warning: This method must be around by update(save:closure:)
     ///
-    public func delete<E:Entityable>(_ entities:[E]?) async throws {
+    @discardableResult
+    public func delete<E:Entityable>(_ entities:[E]?) -> Promise<Void> {
         guard let entities else {
-            return
+            return .init()
         }
-        try await withCheckedThrowingContinuation { cont in
+        return Promise{resolve,reject in
             self.moc.perform {
                 do{
                     entities.forEach {
@@ -182,9 +185,9 @@ extension Coredb{
                         }
                     }
                     try self._save()
-                    cont.resume(returning: ())
+                    resolve(())
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
@@ -200,17 +203,17 @@ extension Coredb{
     /// - Important: This method will all auto save context
     ///
     @discardableResult
-    public func insert<E:Entityable>(_ type:E.Type,input:E.Input)async throws -> E{
-        try await withCheckedThrowingContinuation { cont in
+    public func insert<E:Entityable>(_ type:E.Type,input:E.Input)->Promise<E>{
+        Promise{resolve,reject in
             self.moc.perform {
                 do{
                     let obj = type.init()
                     try obj.awake(from: input)
                     try self._flush(obj)
                     try self._save()
-                    cont.resume(returning: obj)
+                    resolve(obj)
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
@@ -230,16 +233,16 @@ extension Coredb{
     public func insert<E:Entityable>(
         _ type:E.Type,
         inputs:[E.Input],
-        orderby:Orderby? = nil) async throws -> [E]
+        orderby:Orderby? = nil) ->Promise<[E]>
     {
-        try await withCheckedThrowingContinuation { cont in
+        Promise{resolve,reject in
             self.moc.perform {
                 do{
                     let results = try self._create(type, inputs:inputs,orderby: orderby)
                     try self._save()
-                    cont.resume(returning: results)
+                    resolve(results)
                 }catch{
-                    cont.resume(throwing: error)
+                    reject(error)
                 }
             }
         }
@@ -253,13 +256,16 @@ extension Coredb{
     /// - Returns: The managed object  if matching the id
     /// - Important: This method will perform in moc queue
     ///
-    public func query<E:Entityable>(
-        one type:E.Type,
-        id:E.ID) async -> E?
-    {
-        await withCheckedContinuation { cont in
+    public func query<E:Entityable>(one type:E.Type = E.self,id:E.ID) -> Promise<E?>{
+        Promise{resolve,reject in
             self.moc.perform {
-                cont.resume(returning: self._query(one: type, id: id))
+                do{
+                    let result = try self._query(one: type, id: id)
+                    try self._save()
+                    resolve(result)
+                }catch{
+                    reject(error)
+                }
             }
         }
     }
@@ -279,17 +285,17 @@ extension Coredb{
         page:Pager?=nil,
         orderby:Orderby? = nil) -> Promise<[E]>
     {
-        let promise = Promise<[E]>()
-        self.moc.perform {
-            do{
-                let results = try self._query(type, where: `where`, page: page, orderby: orderby)
-                try self._save()
-                promise.done(results,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let results = try self._query(type, where: `where`, page: page, orderby: orderby)
+                    try self._save()
+                    resolve(results)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     ///
     ///  Query the count of entities that matching the predicate
@@ -300,16 +306,17 @@ extension Coredb{
     /// - Important: This method will perform in moc queue
     ///
     public func count<E:Entityable>(for type:E.Type = E.self,where:Where?=nil)->Promise<Int>{
-        let promise = Promise<Int>()
-        self.moc.perform {
-            do{
-                let count = try self._count(for: type,where: `where`)
-                promise.done(count,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let count = try self._count(for: type,where: `where`)
+                    try self._save()
+                    resolve(count)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     /// overlay all the object of the `Entityable` Type
     /// Unlike insert , This method will remove all the object which not exsit in the `models`
@@ -331,17 +338,17 @@ extension Coredb{
         where:Where? = nil,
         orderby:Orderby? = nil)->Promise<[E]>
     {
-        let promise = Promise<[E]>()
-        self.moc.perform {
-            do{
-                let results = try self._overlay(type, inputs: inputs,where: `where`,orderby: orderby)
-                try self._save()
-                promise.done(results,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let results = try self._overlay(type, inputs: inputs,where: `where`,orderby: orderby)
+                    try self._save()
+                    resolve(results)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
 }
 
@@ -358,48 +365,48 @@ extension Coredb{
     /// - Warning: This method will perform sqlite io directly. Do't around by update(save:closure:) or commit(closure:)
     ///
     @discardableResult
-    public func insert<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Any]])->Promise<[E]>{
-        let promise = Promise<[E]>()
-        self.moc.perform {
-            do{
-                let results = try self._insert(type, inputs: inputs)
-                try self._save()
-                promise.done(results,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+    public func insert<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])->Promise<[E]>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let results = try self._insert(type, inputs: inputs)
+                    try self._save()
+                    resolve(results)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     /// `return Void`
     @discardableResult
-    public func insert0<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Any]])->Promise<Void>{
-        let promise = Promise<Void>()
-        self.moc.perform {
-            do{
-                try self._insert0(type, inputs: inputs)
-                try self._save()
-                promise.done((),in: self.callbackQueue())
-            }catch{
-                promise.done(error,in: self.callbackQueue())
+    public func insert0<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])->Promise<Void>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    try self._insert0(type, inputs: inputs)
+                    try self._save()
+                    resolve(())
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     /// `retrun ids`
     @discardableResult
-    public func insert1<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Any]])-> Promise<[NSManagedObjectID]>{
-        let promise = Promise<[NSManagedObjectID]>()
-        self.moc.perform {
-            do{
-                let ids = try self._insert1(type, inputs: inputs)
-                try self._save()
-                promise.done(ids,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+    public func insert1<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])-> Promise<[NSManagedObjectID]>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let ids = try self._insert1(type, inputs: inputs)
+                    try self._save()
+                    resolve(ids)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     ///
     /// Batch delete some entities of `type` when predicate.
@@ -410,17 +417,17 @@ extension Coredb{
     ///
     @discardableResult
     public func delete<E:Entityable>(_ type:E.Type = E.self,where:Where? = nil)-> Promise<[NSManagedObjectID]>{
-        let promise = Promise<[NSManagedObjectID]>()
-        self.moc.perform {
-            do{
-                let ids = try self._delete(type, where: `where`)
-                try self._save()
-                promise.done(ids,in: self.callbackQueue())
-            }catch{
-                promise.done(error)
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let ids = try self._delete(type, where: `where`)
+                    try self._save()
+                    resolve(ids)
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
     ///
     /// Batch update some entities of `type` when predicate
@@ -431,18 +438,17 @@ extension Coredb{
     /// - Warning: This method will perform sqlite io directly. Do't around by update(save:closure:) or commit(closure:)
     ///
     @discardableResult
-    public func update<E:Entityable>(_ type:E.Type = E.self,set:[String:Any],where:Where? = nil)->Promise<Void>{
-        let promise = Promise<Void>()
-        self.moc.perform {
-            do{
-                try self._update(type, set: set, where: `where`)
-                try self._save()
-                promise.done((),in: self.callbackQueue())
-            }catch{
-                promise.done(error,in: self.callbackQueue())
+    public func update<E:Entityable>(_ type:E.Type = E.self,set:[String:Sendable],where:Where? = nil)->Promise<Void>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    try self._update(type, set: set, where: `where`)
+                    try self._save()
+                }catch{
+                    reject(error)
+                }
             }
         }
-        return promise
     }
 }
 

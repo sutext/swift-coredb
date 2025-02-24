@@ -25,11 +25,9 @@ struct ItemView:View {
         }
     }
     func modify(){
-        Task{
-            print(model.schools)
-            self.model.name = "Jack \(Int.random(in: 100000...999999))"
-            try? await orm.flush(model)
-        }
+        print(model.schools)
+        self.model.name = "Jack \(Int.random(in: 100000...999999))"
+        orm.flush(model)
     }
 }
 struct FirstTestView: View ,Sendable{
@@ -61,28 +59,30 @@ struct FirstTestView: View ,Sendable{
             })
         }
         .onAppear {
-            Task{
-                self.models = try await orm.query(UserObject.self,where:.init(format: "id=%@", "")).wait()
+            orm.query(UserObject.self,where:.init(format: "id=%@", "")).then { ms in
+                await update(ms)
             }
         }
+    }
+    func update(_ modles:[UserObject]){
+        self.models = models
     }
     func addData(){
-        
-        
-        Task {
-            let u = UserObject()
-            try? u.awake(from: randomUser())
-            try? await orm.flush(u)
-            self.models.append(u)
-            let user = self.randomUser()
-            if let u = try? await orm.insert(UserObject.self, input: user){
-                self.models.append(u)
-            }
+        let u = UserObject()
+        try? u.awake(from: randomUser())
+        orm.flush(u)
+        self.models.append(u)
+        let user = self.randomUser()
+        orm.insert(UserObject.self, input: user).then { user in
+            await append(user)
         }
         
     }
-    func modifyData(){
+    func append(_ user:UserObject){
 
+    }
+    func modifyData(){
+        
     }
     func randomUser()->[String:Sendable&Codable]{
         let id = Int.random(in: 0...10000)

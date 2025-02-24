@@ -73,8 +73,8 @@ extension Coredb{
         ///@see `Coredb`.query(one:id)
         public func query<E:Entityable>(
             one type:E.Type,
-            id:E.ID) -> E?{
-            self.storage._query(one: type, id: id)
+            id:E.ID)throws -> E?{
+            try self.storage._query(one: type, id: id)
         }
         ///@see `Coredb`.query(type:where)
         public func query<E:Entityable>(

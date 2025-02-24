@@ -8,7 +8,7 @@
 import CoreData
 import Combine
 
-public protocol EntityID:Codable,Hashable{}
+public protocol EntityID:Codable,Hashable,Sendable{}
 
 extension Int:EntityID{}
 extension Int8:EntityID{}
