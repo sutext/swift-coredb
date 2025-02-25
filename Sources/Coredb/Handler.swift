@@ -59,15 +59,14 @@ extension Coredb{
             _ type:E.Type,
             inputs:[E.Input],
             orderby: Orderby? =  nil)throws->[E]{
-            try self.storage._create(type, inputs: inputs,orderby: orderby)
+            try self.storage._flush(type, inputs: inputs,orderby: orderby)
         }
         ///@see `Coredb`.create
         public func insert<E:Entityable>(
             _ type:E.Type,
             input:E.Input)throws->E{
-            let obj = type.init()
-            try obj.awake(from: input)
-            try self.storage._flush(obj)
+            let obj = type.init(input)
+                try self.storage._flush(obj)
             return obj
         }
         ///@see `Coredb`.query(one:id)

@@ -16,7 +16,9 @@ struct ItemView:View {
             Text("id:\(model.id)")
             Text("name:\(model.name ?? "")")
             Text("age:\(model.age)")
+            Text("weight:\(model.weight)")
             Text("gender:\(model.gender ?? .boy)")
+            Text("working:\(model.working?.description ?? "")")
             Text("school:\(model.school?.name ?? "")")
             Text("schools count:\(model.schools.count)")
             Button (action:modify){
@@ -39,9 +41,6 @@ struct FirstTestView: View ,Sendable{
                     ItemView(model: m)
                 }
             }
-//            List(models){m in
-//                ItemView(model: m)
-//            }
             .toolbar(content: {
                 ToolbarItem(placement: .principal) { // 主标题
                     Text("标题")
@@ -52,14 +51,14 @@ struct FirstTestView: View ,Sendable{
                     }
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) { // 右侧工具栏项
-                    Button(action: modifyData) {
-                        Text("修改数据")
+                    Button(action: clearData) {
+                        Text("清除数据")
                     }
                 }
             })
         }
         .onAppear {
-            orm.query(UserObject.self).then { ms in
+            orm.query(UserObject.self,where: .init("age>%@", 0),orderby: .ascending("id")).then { ms in
                 await update(ms)
             }
         }
@@ -68,10 +67,10 @@ struct FirstTestView: View ,Sendable{
         self.models = ms
     }
     func addData(){
-        let u = UserObject()
-        try? u.awake(from: randomUser())
-        orm.flush(u)
-        self.models.append(u)
+        let u = UserObject(randomUser())
+        orm.flush(u).then { _ in
+            await append(u)
+        }
         let user = self.randomUser()
         orm.insert(UserObject.self, input: user).then { user in
             await append(user)
@@ -83,15 +82,24 @@ struct FirstTestView: View ,Sendable{
         
     }
     func append(_ user:UserObject){
-        self.models.append(user)
+        self.models.insert(user, at: 0)
     }
-    func modifyData(){
-        
+    func clearData(){
+        orm.delete(self.models).then { _ in
+            await update([])
+        }
     }
-    func randomUser()->[String:Sendable&Codable]{
+    func randomUser()->[String:Sendable]{
         let id = Int.random(in: 0...10000)
+        let working:[String:Sendable] = [
+            "name":"腾讯科技",
+            "school":[
+                "name":"腾讯老年大学"
+            ]
+        ]
         return [
             "id":"\(id)",
+            "age":UInt16.random(in: 0...200),
             "gender":id%2,
             "name":"Jack \(id)",
             "classmates":["xiaoming","xiaohong","xiaoli"],
@@ -99,6 +107,8 @@ struct FirstTestView: View ,Sendable{
                 "name":"紫藤小学",
                 "address":"高新区"
             ],
+            "working":working,
+            "weight":Int.random(in: 10...100),
             "schools":[
                 ["name":"紫藤小学","address":"高新区"],
                 ["name":"西川小学","address":"武侯区"]

@@ -14,7 +14,8 @@ let package = Package(
             targets: ["Coredb"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/sutext/swift-promise", from: "2.0.0")
+        .package(url: "https://github.com/sutext/swift-promise", from: "2.0.0"),
+        .package(url: "https://github.com/sutext/swift-json", from: "2.0.1")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -22,7 +23,8 @@ let package = Package(
         .target(
             name: "Coredb",
             dependencies: [
-                .product(name: "Promise", package: "swift-promise")
+                .product(name: "Promise", package: "swift-promise"),
+                .product(name: "JSON", package: "swift-json")
             ]
         ),
         .testTarget(

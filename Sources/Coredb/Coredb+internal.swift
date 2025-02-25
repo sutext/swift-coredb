@@ -33,7 +33,7 @@ extension Coredb{
         guard let obj = try self.moc.fetch(request).first else{
             return nil
         }
-        let result = type.init()
+        let result = type.init(nil)
         result.attach(obj)
         return result
     }
@@ -52,7 +52,7 @@ extension Coredb{
         }
         let objs =  try self.moc.fetch(request)
         return objs.compactMap{
-            let result = type.init()
+            let result = type.init(nil)
             result.attach($0)
             return result
         }
@@ -64,7 +64,7 @@ extension Coredb{
         orderby:Orderby?) throws -> [E]
     {
         let olds = try self._query(type, where: `where`,page: nil,orderby: nil)
-        let results = try self._create(type, inputs:inputs,orderby: orderby)
+        let results = try self._flush(type, inputs:inputs,orderby: orderby)
         var rms = [E]()
         olds.forEach{ old in
             if !results.contains(where: { $0.id == old.id }){
@@ -110,7 +110,7 @@ extension Coredb{
         if let ids = (results as? NSBatchInsertResult)?.result as? [NSManagedObjectID]{
             NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSInsertedObjectIDsKey:ids], into: [self.moc])
             return ids.compactMap {
-                let result = type.init()
+                let result = type.init(nil)
                 result.attach(self.moc.object(with: $0))
                 return result
             }
@@ -134,11 +134,11 @@ extension Coredb{
         }
         return []
     }
-    func _create<E:Entityable>(_ type:E.Type,inputs:[E.Input],orderby: Orderby?)throws->[E]{
+    func _flush<E:Entityable>(_ type:E.Type,inputs:[E.Input],orderby: Orderby?)throws->[E]{
         let set:NSMutableOrderedSet = []
         for input in inputs {
-            let obj = type.init()
-            try obj.awake(from: input)
+            let obj = type.init(input)
+//            try obj.awake(from: input)
             try self._flush(obj)
             set.add(obj)
         }
@@ -148,10 +148,10 @@ extension Coredb{
         return (set.array as? [E]) ?? []
     }
     func _flush<E:Entityable>(_ entity:E) throws{
-        guard entity.id.string.count>0 else {
+        if entity.id.string.isEmpty {
             throw CoredbError.invalidID
         }
-        if entity.reffer == nil{
+        if entity.reffer  == nil{
             let request = E.fetchRequest()
             request.predicate = NSPredicate(format:"id == %@",entity.id.string)
             request.fetchLimit = 1
@@ -171,17 +171,17 @@ extension Coredb{
     public struct Orderby:Sendable{
         public typealias Element = (key:String,ascending:Bool)
         private let elements:[Element]
-        public init(key: String, ascending: Bool) {
+        public init(_ key: String, ascending: Bool) {
             self.elements = [(key,ascending)]
         }
         public init(_ elements:Element...){
             self.elements = elements
         }
         public static func ascending(_ key:String)->Orderby{
-            .init(key: key, ascending: true)
+            .init(key, ascending: true)
         }
         public static func descending(_ key:String)->Orderby{
-            .init(key: key, ascending: false)
+            .init(key, ascending: false)
         }
         public var sorts:[NSSortDescriptor]{
             self.elements.map{
@@ -200,7 +200,7 @@ extension Coredb{
     public struct Where:Sendable{
         public let format:String
         public let args:[Sendable]
-        public init(format: String, _ args: Sendable...) {
+        public init(_ format: String, _ args: Sendable...) {
             self.format = format
             self.args = args
         }

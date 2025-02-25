@@ -10,9 +10,10 @@ import Combine
 import CoreData
 
 protocol AnyField:AnyObject{
-    var target:Entity?{ get set }
     var key:String {get set}
-    func flush()
+    var target:Entity?{ get set }
+    func readout()
+    func writein()
 }
 extension Entity{
     @propertyWrapper
@@ -29,15 +30,7 @@ extension Entity{
         }
         public var wrappedValue: T{
             get {
-                if hasLoaded{
-                    return value
-                }
-                if let raw = self.target?.reffer?.value(forKey: key),
-                   let value = T.readout(raw){
-                    self.value = value
-                    self.hasLoaded = true
-                    return value
-                }
+                readout()
                 return value
             }
             set{
@@ -49,8 +42,8 @@ extension Entity{
                         if let publisher = self.publisher{
                             publisher.send(self.value)
                         }
-                        if let obtarget = self.target as? (any ObservableEntity){
-                            obtarget.objectWillChange.send()
+                        if let ob = self.target as? any ObservableEntity{
+                            ob.objectWillChange.send()
                         }
                     }
                 }
@@ -64,8 +57,18 @@ extension Entity{
             self.publisher = publisher
             return publisher
         }
-        func flush() {
-            if self.hasChange, let reffer = self.target?.reffer{
+        func readout(){
+            if hasLoaded{
+                return
+            }
+            if let raw = self.target?.reffer?.value(forKey: key),
+               let value = T.readout(raw){
+                self.value = value
+                self.hasLoaded = true
+            }
+        }
+        func writein(){
+            if hasChange,let reffer = self.target?.reffer{
                 reffer.setValue(wrappedValue.writein(), forKey: key)
                 self.hasChange = false
             }

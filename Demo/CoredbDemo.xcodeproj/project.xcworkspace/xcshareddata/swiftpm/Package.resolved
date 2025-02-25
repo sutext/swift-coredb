@@ -1,6 +1,15 @@
 {
-  "originHash" : "954cb1cc7a520d994abacbb5ce788359d0524bdb5b518672e74c3c7499b9dd58",
+  "originHash" : "4211606ec51fad0f892b73025905dd9039ae88be0299b76be866b90d851d6d8d",
   "pins" : [
+    {
+      "identity" : "swift-json",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sutext/swift-json",
+      "state" : {
+        "revision" : "c7a1c51d73d81db701af80ac505928faeb459510",
+        "version" : "2.0.1"
+      }
+    },
     {
       "identity" : "swift-promise",
       "kind" : "remoteSourceControl",

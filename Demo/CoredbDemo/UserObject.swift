@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CoreData
 import Combine
 import Coredb
 
@@ -15,8 +14,50 @@ enum Gender:Int,Fieldable{
     case boy = 0
     case girl = 1
 }
-
-struct School:JSONFieldable{
+struct Weight:RawRepresentable,Fieldable{
+    let rawValue:Int
+    init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+}
+extension Weight:ExpressibleByIntegerLiteral{
+    init(integerLiteral value: IntegerLiteralType) {
+        self.rawValue = value
+    }
+}
+extension Weight:CustomStringConvertible{
+    var description: String{ "\(rawValue)" }
+}
+class Working:Fieldable,Hashable{
+    var name:String = ""
+    var type:String = ""
+    var school:School? = nil
+    func hash(into hasher: inout Hasher) {
+        name.hash(into: &hasher)
+        type.hash(into: &hasher)
+    }
+    static func ==(l:Working,r:Working)->Bool{
+        l.hashValue == r.hashValue
+    }
+    init(_ dic:Any?){
+        guard let dic = dic as? [AnyHashable:Any] else{
+            return
+        }
+        if let name = dic["name"] as? String{
+            self.name = name
+        }
+        if let addr = dic["type"] as? String{
+            self.type = addr
+        }
+        self.school = School(dic["school"])
+    }
+}
+extension Working:CustomStringConvertible{
+    var description: String{
+        "working:\(name),school:\(school?.name ?? "")"
+    }
+}
+struct School:Fieldable{
     var name:String = ""
     var address:String = ""
     init(_ dic:Any?){
@@ -30,28 +71,29 @@ struct School:JSONFieldable{
             self.address = addr
         }
     }
-//    @inlinable func writein() -> Any? { try? JSONEncoder().encode(self) }
-//    @inlinable static func readout(_ data: Any) -> Self? {
-//        if let raw = data as? Data{
-//            return try? JSONDecoder().decode(Self.self, from: raw)
-//        }
-//        return nil
-//    }
 }
 
 final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
-    @Field var id:String = ""
+    @Field private(set) var id:String = ""
     @Field var name:String?
     @Field var age:UInt16 = 0
     @Field var gender:Gender?
     @Field var school:School?
     @Field var schools:[School] = []
     @Field var classmates:[String]?
-    func awake(from data: [String:Sendable&Codable]) throws {
-        guard let id = data["id"] as? String else{
-            throw CoredbError.invalidID
+    @Field var weight:Weight = 0
+    @Field var working:Working? = nil
+    init(_ data: [String:Sendable]? = nil) {
+        super.init()
+        guard let data else{
+            return
+        }
+        guard let id = data["id"] as? String else{ // id must contains in data otherwise keep empty
+            return
         }
         self.id = id
+        self.age = (data["age"] as? UInt16) ?? 0
+        self.weight = Weight(rawValue: (data["weight"] as? Int) ?? 0 )
         self.gender = Gender(rawValue: (data["gender"] as? Int) ?? 0) ?? .boy
         self.school = School(data["school"])
         self.name = (data["name"] as? String) ?? ""
@@ -61,7 +103,9 @@ final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
         if let ary = data["classmates"] as? [String]{
             self.classmates = ary
         }
+        self.working = Working(data["working"])
     }
+    var isEmpty:Bool{ id.isEmpty }
 }
 let orm = DataBase()
 

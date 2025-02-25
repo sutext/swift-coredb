@@ -47,11 +47,10 @@ extension EntityID{
         }
     }
 }
-
-open class Entity{
+open class Entity:@unchecked Sendable{
     private(set) var reffer:NSManagedObject?
     private var allFields:[AnyField] = []
-    public required init(){
+    public init() {
         self.allFields = Mirror(reflecting: self).children.compactMap {
             if let field = $0.value as? AnyField{
                 if field.key.isEmpty,let label = $0.label{
@@ -67,24 +66,10 @@ open class Entity{
         guard self.reffer == nil else { return }
         self.reffer = reffer
     }
-//    func reload(){
-//        self.allFields.forEach {
-//            
-//            if let value = self.reffer?.value(forKey: $0.key){
-//                $0.value.setValue(value)
-//            }
-//        }
-//    }
     func _flush(){
         self.allFields.forEach {
-            $0.flush()
+            $0.writein()
         }
-    }
-    public var isFault:Bool?{
-        self.reffer?.isFault
-    }
-    public var isDeleted:Bool?{
-        self.reffer?.isDeleted
     }
 }
 extension Entity:CustomStringConvertible{
@@ -96,28 +81,18 @@ public protocol ObservableEntity:ObservableObject{
     var objectWillChange:ObservableObjectPublisher{ get }
 }
 /// `Entityable` protocol describe a schema of managed object for orm structure
-/// A convenience initializer is recommended to implement the `init(_:)` method  `eg:`
-///
-///     class UserObject:Entity,Entityable
-///         static var entityName:String = "UserObject"
-///         required convenience init(_ model: [AnyHashable : Any]) throws{
-///             self.init()
-///             self.id = model["id"] as! String
-///         }
-///     }
 ///
 public protocol Entityable:Entity,Identifiable,Sendable where ID:EntityID{
     associatedtype Input:Sendable
-    init()
-    /// The model initializer
-    func awake(from data:Input)throws
-    /// The  entity name  of managed object
+    init(_ data:Input?)
+    var isEmpty:Bool { get }
     static var entityName:String { get }
 }
 extension Entityable{
-    
+    /// default empty implements
+    var isEmpty:Bool { id.string.isEmpty }
+    /// default entityName implements
     public static var entityName: String { String(describing: Self.self) }
-
     static func fetchRequest()->NSFetchRequest<NSManagedObject>{
         NSFetchRequest<NSManagedObject>.init(entityName: entityName)
     }

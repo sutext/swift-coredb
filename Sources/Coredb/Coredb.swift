@@ -4,9 +4,9 @@
 //
 //  Created by supertext on 2024/3/15.
 //
-
-@preconcurrency import CoreData
+@_exported import JSON
 @_exported import Promise
+@preconcurrency import CoreData
 
 public enum CoredbError:Error{
     case invalidID
@@ -92,7 +92,7 @@ open class Coredb:@unchecked Sendable{
         }
     }
 }
-//MARK: public sync methods
+//MARK: public methods
 extension Coredb{
     @discardableResult
     public func save() -> Promise<Void> {
@@ -144,9 +144,9 @@ extension Coredb{
     ///
     /// Delete a managed object from database.
     /// - Parameters:
-    ///     - object: The instance that will be delete
-    /// - Warning: This method must be around by update(save:closure:)
-    ///
+    ///     - entity: The instance that will be delete
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     @discardableResult
     public func delete<E:Entityable>(_ entity:E?)->Promise<Void>{
         guard let entity = entity?.reffer else {
@@ -168,8 +168,8 @@ extension Coredb{
     /// Delete a managed object from database.
     /// - Parameters:
     ///     - entities: The instance array that will be delete
-    /// - Warning: This method must be around by update(save:closure:)
-    ///
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     @discardableResult
     public func delete<E:Entityable>(_ entities:[E]?) -> Promise<Void> {
         guard let entities else {
@@ -195,19 +195,16 @@ extension Coredb{
     ///  Insert or update a managed object from model
     /// - Parameters:
     ///     - type: An `Entityable` subclass type
-    ///     - model: The data source model instance
-    /// - Throws: some system error from moc.
-    /// - Returns: A newly or updated managed object instance
-    /// - Important: This method will perform in moc queue
-    /// - Important: This method will all auto save context
-    ///
+    ///     - input: The data source model instance
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     @discardableResult
     public func insert<E:Entityable>(_ type:E.Type = E.self,input:E.Input)->Promise<E>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    let obj = type.init()
-                    try obj.awake(from: input)
+                    let obj = type.init(input)
+//                    try obj.awake(from: input)
                     try self._flush(obj)
                     try self._save()
                     resolve(obj)
@@ -221,19 +218,17 @@ extension Coredb{
     ///  Insert or update a group of managed object from models
     /// - Parameters:
     ///    - type: An `Entityable` subclass type
-    ///    - models: The data source model instance list
-    ///    - sorts: An array of`NSSortDescriptor` using result sorts
-    /// - Throws: some system error from moc.
-    /// - Returns: A newly or updated managed object instance list
-    /// - Important: This method will perform in moc queue
-    /// - Important: This method will all auto save context
+    ///    - inputs: The data source model instance list
+    ///    - orderby: An array of`NSSortDescriptor` using result sorts
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     ///
     @discardableResult
     public func insert<E:Entityable>(_ type:E.Type = E.self,inputs:[E.Input],orderby:Orderby? = nil) ->Promise<[E]>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    let results = try self._create(type, inputs:inputs,orderby: orderby)
+                    let results = try self._flush(type, inputs:inputs,orderby: orderby)
                     try self._save()
                     resolve(results)
                 }catch{
@@ -248,8 +243,8 @@ extension Coredb{
     /// - Parameters:
     ///     - type: An `Entityable` subclass type
     ///     - id: The object primary id
-    /// - Returns: The managed object  if matching the id
-    /// - Important: This method will perform in moc queue
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     ///
     public func query<E:Entityable>(one type:E.Type = E.self,id:E.ID) -> Promise<E?>{
         Promise{resolve,reject in
@@ -268,11 +263,11 @@ extension Coredb{
     ///  Query all managed entities which match the predicate
     /// - Parameters:
     ///     - type: An `Entityable` subclass type
-    ///     - predicate: The querey predicate
+    ///     - where: The querey predicate
     ///     - page: The pageable query parameters
-    ///     - sorts: An `NSSortDescriptor` array . just like order by
-    /// - Returns: The managed entities matching the predicate
-    /// - Important: This method will perform in moc queue
+    ///     - orderby: An `NSSortDescriptor` array . just like order by
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     ///
     public func query<E:Entityable>(_ type:E.Type = E.self,where:Where?=nil,page:Pager?=nil,orderby:Orderby? = nil) -> Promise<[E]>{
         Promise{resolve,reject in
@@ -291,9 +286,9 @@ extension Coredb{
     ///  Query the count of entities that matching the predicate
     /// - Parameters:
     ///     - type: An `Entityable` subclass type
-    ///     - predicate: The querey predicate
-    /// - Returns: The managed entities count that matching the predicate
-    /// - Important: This method will perform in moc queue
+    ///     - where: The querey predicate
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     ///
     public func count<E:Entityable>(for type:E.Type = E.self,where:Where?=nil)->Promise<Int>{
         Promise{resolve,reject in
@@ -313,13 +308,11 @@ extension Coredb{
     ///
     /// - Parameters:
     ///    - type: type of `Entityable`
-    ///    - models: source models that need to been insert
+    ///    - inputs: source models that need to been insert
     ///    - where: the qurey condition tha will been overlay
-    ///    - sorts: An `NSSortDescriptor`  for result  sort
-    /// - Throws: Some error from moc or id not exsit
-    /// - Returns: The result object list
-    /// - Important: This method will perform in moc queue
-    /// - Important: This method will all auto save context
+    ///    - orderby: An `NSSortDescriptor`  for result  sort
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     ///
     @discardableResult
     public func overlay<E:Entityable>(_ type:E.Type = E.self,inputs:[E.Input],where:Where? = nil,orderby:Orderby? = nil)->Promise<[E]>{
@@ -344,8 +337,8 @@ extension Coredb{
     /// - Parameters:
     ///    - type: An `Entityable` subclass type
     ///    - inputs: The data source model instance list
-    /// - Throws: some system error from moc.
-    /// - Returns: A list of new entities
+    /// - Returns: `Promise` handler for next async or sync opration
+    /// - Note: This method will all auto save context
     /// - Warning: In this case, there is no need to follow the `Entityable` protocol and no rearrangement mechanism is triggered
     /// - Warning: This method will perform sqlite io directly. Do't around by update(save:closure:) or commit(closure:)
     ///
@@ -363,7 +356,7 @@ extension Coredb{
             }
         }
     }
-    /// `return Void`
+    /// Same as  `insert(_:inputs:)` but `return Void`
     @discardableResult
     public func insert0<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])->Promise<Void>{
         Promise{resolve,reject in
@@ -378,7 +371,7 @@ extension Coredb{
             }
         }
     }
-    /// `retrun ids`
+    /// Same as  `insert(_:inputs:)` but `return ids`
     @discardableResult
     public func insert1<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])-> Promise<[NSManagedObjectID]>{
         Promise{resolve,reject in
@@ -397,7 +390,7 @@ extension Coredb{
     /// Batch delete some entities of `type` when predicate.
     /// - Parameters:
     ///    - type:special object type
-    ///    - predicate: The predicate type that will be delete
+    ///    - where: The predicate type that will be delete
     /// - Warning: This method will perform sqlite io directly. Do't around by update(save:closure:) or commit(closure:)
     ///
     @discardableResult
@@ -419,7 +412,7 @@ extension Coredb{
     /// - Parameters:
     ///    - type:special object type
     ///    - set: the values to be update
-    ///    - predicate: The predicate type that will be delete
+    ///    - where: The predicate type that will be delete
     /// - Warning: This method will perform sqlite io directly. Do't around by update(save:closure:) or commit(closure:)
     ///
     @discardableResult
@@ -435,9 +428,4 @@ extension Coredb{
             }
         }
     }
-}
-
-
-@globalActor public final actor DataActor{
-    public static let shared = DataActor()
 }
