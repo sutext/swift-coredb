@@ -29,6 +29,7 @@ extension Entity{
             self.value = wrappedValue
         }
         public var wrappedValue: T{
+            
             get {
                 readout()
                 return value

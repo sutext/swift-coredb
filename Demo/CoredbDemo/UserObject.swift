@@ -73,8 +73,8 @@ struct School:Fieldable{
     }
 }
 
-final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
-    @Field private(set) var id:String = ""
+final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{    
+    @Field var id:Int = 0
     @Field var name:String?
     @Field var age:UInt16 = 0
     @Field var gender:Gender?
@@ -88,7 +88,7 @@ final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
         guard let data else{
             return
         }
-        guard let id = data["id"] as? String else{ // id must contains in data otherwise keep empty
+        guard let id = data["id"] as? Int else{ // id must contains in data otherwise keep empty
             return
         }
         self.id = id
@@ -105,7 +105,6 @@ final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
         }
         self.working = Working(data["working"])
     }
-    var isEmpty:Bool{ id.isEmpty }
 }
 let orm = DataBase()
 

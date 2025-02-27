@@ -149,7 +149,7 @@ extension Coredb{
     }
     func _flush<E:Entityable>(_ entity:E) throws{
         if entity.id.string.isEmpty {
-            throw CoredbError.invalidID
+            throw DBError.invalidID
         }
         if entity.reffer  == nil{
             let request = E.fetchRequest()

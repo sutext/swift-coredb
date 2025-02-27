@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol Fieldable: Codable,Equatable,Hashable{
+public protocol Fieldable: Codable,Hashable{
     func writein() -> Any?
     static func readout(_ data:Any) -> Self?
 }
@@ -82,6 +82,7 @@ extension Optional:Fieldable where Wrapped:Fieldable{
 extension Set:Fieldable where Element:Fieldable{}
 extension Array:Fieldable where Element:Fieldable{}
 extension Dictionary:Fieldable where Value:Fieldable,Key:Codable{}
+
 /// Use RawValue Type in the `xcdatamodeld`
 public extension Fieldable where Self:RawRepresentable{
     @inlinable func writein() -> Any?{ self.rawValue }

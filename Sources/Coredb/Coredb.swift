@@ -4,62 +4,78 @@
 //
 //  Created by supertext on 2024/3/15.
 //
-@_exported import JSON
 @_exported import Promise
+import SwiftData
 @preconcurrency import CoreData
 
-public enum CoredbError:Error{
+
+public enum DBError:Error{
     case invalidID
     case modelNotFound
     case entityNotFound
 }
 
-/// global stoage configure
-/// User can inherit from this class for custom and extensions。
+/// `Coredb` is built on top of `CoreData`.
+/// The main purpose is to apply `CoreData` more safely and conveniently
+/// User should inherit from this class for custom configuration and extensions。
+///
+/// - Important:All managed object `codegen` must be set to `Manual/None`
 open class Coredb:@unchecked Sendable{
-    let moc:NSManagedObjectContext
-    let modelName:String
-    public init(model name:String,bundle:Bundle = .main)throws{
+    public let moc:NSManagedObjectContext
+    public let psc:NSPersistentStoreCoordinator
+    public let name:String
+    public private(set) var store:NSPersistentStore!
+    
+    public init(model name:String,bundle:Bundle = .main) throws {
         guard let url = bundle.url(forResource: name, withExtension: "momd") else{
-            throw CoredbError.modelNotFound
+            throw DBError.modelNotFound
         }
         guard let modle = NSManagedObjectModel(contentsOf: url) else{
-            throw CoredbError.modelNotFound
+            throw DBError.modelNotFound
         }
-        self.modelName = name
-        let psc = NSPersistentStoreCoordinator(managedObjectModel: modle)
+        self.name = name
+        self.psc = NSPersistentStoreCoordinator(managedObjectModel: modle)
         self.moc = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        self.store = try self.addStore()
         self.moc.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        let storeURL = URL(fileURLWithPath:"\(databaseDirectory)/\(modelName).db");
-        let opions = [
+        self.moc.persistentStoreCoordinator = psc
+    }
+    /// override this method for custom Persistent Store configure
+    ///
+    /// - Note: By default use `DocumentDirectory` for dataStore.
+    /// - Note: By default use `NSMigratePersistentStoresAutomaticallyOption` and `NSInferMappingModelAutomaticallyOption` options
+    ///
+    /// - Important: This method will fallback and restore when persistent store auto migration failed.
+    /// If you don't want to do that, override for custom
+    ///
+    open func addStore() throws ->NSPersistentStore{
+        let options = [
             NSMigratePersistentStoresAutomaticallyOption: true,
             NSInferMappingModelAutomaticallyOption: true
         ]
+        let docDir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()
+        let storeURL = URL(fileURLWithPath:"\(docDir)/\(name).db")
         do {
-            try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: opions)
-        }catch{
-            print("⚠️ Add psc error:",error,"restore")
-            try FileManager.default.removeItem(at: storeURL);
-            try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: opions)
+            if #available(iOS 15.0,macOS 12.0,tvOS 15.0, watchOS 8.0, *) {
+                return try psc.addPersistentStore(type: .sqlite, at: storeURL,options: options)
+            }else{
+                return try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: options)
+            }
+        } catch {
+            let error = error as NSError
+            if error.code == 134140{ //Persistent store migration failed,missing mapping model.
+                print("⚠️Persistent store migration failed.")
+            }
+            print("⚠️ Add Persistent store failed:",error.domain,"code:",error.code)
+            print("⚠️ Restore database !!! All data will be lost")
+            // Fallback on Persistent store migration failed
+            try FileManager.default.removeItem(at: storeURL)
+            if #available(iOS 15.0,macOS 12.0,tvOS 15.0, watchOS 8.0,*) {
+                return try psc.addPersistentStore(type: .sqlite, at: storeURL,options: options)
+            }else{
+                return try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: options)
+            }
         }
-        self.configure(for: modle)
-        self.configure(for: psc)
-        self.configure(for: moc)
-        self.moc.persistentStoreCoordinator = psc
-    }
-    /// by default use documentDirectory
-    open var databaseDirectory:String{
-        NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()
-    }
-    /// Override this method for custom NSPersistentStoreCoordinator
-    open func configure(for psc:NSPersistentStoreCoordinator){
-        
-    }
-    open func configure(for mod:NSManagedObjectModel){
-        
-    }
-    open func configure(for moc:NSManagedObjectContext){
-        
     }
     /// Override this method for custom logger
     open func print(_ items:Any... ,line:Int = #line ,file:String = #file){

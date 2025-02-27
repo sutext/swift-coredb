@@ -98,7 +98,7 @@ struct FirstTestView: View ,Sendable{
             ]
         ]
         return [
-            "id":"\(id)",
+            "id":id,
             "age":UInt16.random(in: 0...200),
             "gender":id%2,
             "name":"Jack \(id)",
