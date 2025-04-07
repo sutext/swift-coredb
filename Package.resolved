@@ -1,22 +1,13 @@
 {
-  "originHash" : "cf707cb322d4884cc44f43e6fc0596fd67e62d0163128adbde67dfe9dd1faee8",
+  "originHash" : "e8a420afe493878c6be93d1d7a34e790177caa36f13e1a9bdadb24a901e97d33",
   "pins" : [
     {
       "identity" : "swift-promise",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sutext/swift-promise",
       "state" : {
-        "revision" : "553a174fa9b482177f5e8f3737952aecde061c66",
-        "version" : "2.0.0"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax",
-      "state" : {
-        "revision" : "0687f71944021d616d34d922343dcef086855920",
-        "version" : "600.0.1"
+        "revision" : "a40b8d605aa55c74ec1631daad7a59a5ce5fb075",
+        "version" : "2.0.2"
       }
     }
   ],

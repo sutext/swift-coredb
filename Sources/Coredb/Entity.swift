@@ -8,8 +8,7 @@
 import CoreData
 import Combine
 
-/// Do not declare new conformances to this protocol
-/// they will not work as expected.
+/// - Important: Do not declare new conformances to this protocol, they will not work as expected.
 public protocol EntityID:Codable,Hashable,Sendable{}
 
 extension Int:EntityID{}
@@ -39,10 +38,10 @@ extension EntityID{
     }
 }
 
-@attached(member)
-@attached(memberAttribute)
-@attached(extension)
-public macro Entity() = #externalMacro(module: "CoredbPlugin", type: "EntityMacro")
+//@attached(member)
+//@attached(memberAttribute)
+//@attached(extension)
+//public macro Entity() = #externalMacro(module: "CoredbPlugin", type: "EntityMacro")
 
 /// This class is the parent class of all managed objects
 /// - Important:All managed object `codegen` must be set to `Manual/None`
@@ -90,7 +89,6 @@ public protocol ObservableEntity:Entity,ObservableObject{
 public protocol Entityable:Entity,Identifiable,Sendable where ID:EntityID{
     associatedtype Input:Sendable
     init(_ data:Input?)
-    /// Enity
     static var entityName:String { get }
 }
 /// Add some property and default implemention for `Entityable`
@@ -107,7 +105,7 @@ extension Entityable{
     /// internal method of entiity description
     static func entity(in context:NSManagedObjectContext)throws -> NSEntityDescription{
         guard let entity = NSEntityDescription.entity(forEntityName: entityName, in: context) else{
-            throw DBError.entityNotFound
+            throw Coredb.Error.entityNotFound
         }
         return entity
     }

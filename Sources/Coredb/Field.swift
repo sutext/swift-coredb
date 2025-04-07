@@ -17,19 +17,18 @@ protocol AnyField:AnyObject{
 }
 extension Entity{
     @propertyWrapper
-    public final class Field<T:Fieldable>:@unchecked Sendable{
+    public final class Field<T:Fieldable>:AnyField,@unchecked Sendable{
         public typealias Publisher = CurrentValueSubject<T,Never>
         var value:T
         var key:String = ""
         weak var target:Entity?
-        private var hasChange:Bool = false
-        private var hasLoaded:Bool = false
+        private var loaded:Bool = false
+        private var changed:Bool = false
         private var publisher:Publisher?
         public init(wrappedValue: T) {
             self.value = wrappedValue
         }
         public var wrappedValue: T{
-            
             get {
                 readout()
                 return value
@@ -37,8 +36,8 @@ extension Entity{
             set{
                 if value != newValue{
                     value = newValue
-                    self.hasChange = true
-                    self.hasLoaded = true
+                    self.changed = true
+                    self.loaded = true
                     DispatchQueue.main.async {
                         if let publisher = self.publisher{
                             publisher.send(self.value)
@@ -59,22 +58,20 @@ extension Entity{
             return publisher
         }
         func readout(){
-            if hasLoaded{
+            if loaded{
                 return
             }
             if let raw = self.target?.reffer?.value(forKey: key),
                let value = T.readout(raw){
                 self.value = value
-                self.hasLoaded = true
+                self.loaded = true
             }
         }
         func writein(){
-            if hasChange,let reffer = self.target?.reffer{
+            if changed,let reffer = self.target?.reffer{
                 reffer.setValue(wrappedValue.writein(), forKey: key)
-                self.hasChange = false
+                self.changed = false
             }
         }
     }
 }
-
-extension Entity.Field:AnyField{}

@@ -83,6 +83,7 @@ final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
     @Field var classmates:[String]?
     @Field var weight:Weight = 0
     @Field var working:Working? = nil
+    @Field var parteners:Set<String> = []
     init(_ data: [String:Sendable]? = nil) {
         super.init()
         guard let data else{
@@ -104,6 +105,7 @@ final class UserObject:Entity, Entityable, ObservableEntity,@unchecked Sendable{
             self.classmates = ary
         }
         self.working = Working(data["working"])
+        self.parteners = ["gold","silver"]
     }
 }
 let orm = DataBase()

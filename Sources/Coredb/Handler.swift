@@ -98,4 +98,30 @@ extension Coredb{
             try self.storage._count(for: type, where: `where`)
         }
     }
+    /// Automatically submit transaction updates and roll back in case of failure.
+    ///
+    ///         orm.transaction{handler in
+    ///             handler.moc.fetch(...)
+    ///             handler.moc.count(...)
+    ///             handler.delete(...)
+    ///             try handler.overlay(...)
+    ///             try handler.create(...)
+    ///         }
+    ///
+    @discardableResult
+    public func transaction<T:Sendable>(_ block: @Sendable @escaping (Handler) throws -> T)->Promise<T>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    let result = try block(Handler(self))
+                    if self.moc.hasChanges{
+                        try self.moc.save()
+                    }
+                    resolve(result)
+                }catch{
+                    reject(error)
+                }
+            }
+        }
+    }
 }

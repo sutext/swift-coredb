@@ -5,33 +5,26 @@
 //  Created by supertext on 2024/3/15.
 //
 @_exported import Promise
-import SwiftData
+
 @preconcurrency import CoreData
-
-
-public enum DBError:Error{
-    case invalidID
-    case modelNotFound
-    case entityNotFound
-}
 
 /// `Coredb` is built on top of `CoreData`.
 /// The main purpose is to apply `CoreData` more safely and conveniently
 /// User should inherit from this class for custom configuration and extensions。
 ///
 /// - Important:All managed object `codegen` must be set to `Manual/None`
+///
 open class Coredb:@unchecked Sendable{
-    public let moc:NSManagedObjectContext
-    public let psc:NSPersistentStoreCoordinator
+    let moc:NSManagedObjectContext
+    private let psc:NSPersistentStoreCoordinator
+    private var store:NSPersistentStore!
     public let name:String
-    public private(set) var store:NSPersistentStore!
-    
     public init(model name:String,bundle:Bundle = .main) throws {
         guard let url = bundle.url(forResource: name, withExtension: "momd") else{
-            throw DBError.modelNotFound
+            throw Error.modelNotFound
         }
         guard let modle = NSManagedObjectModel(contentsOf: url) else{
-            throw DBError.modelNotFound
+            throw Error.modelNotFound
         }
         self.name = name
         self.psc = NSPersistentStoreCoordinator(managedObjectModel: modle)
@@ -40,21 +33,23 @@ open class Coredb:@unchecked Sendable{
         self.moc.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         self.moc.persistentStoreCoordinator = psc
     }
+    /// default data store url
+    open var storeURL:URL{
+        let docDir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()
+        return URL(fileURLWithPath:"\(docDir)/\(name).db")
+    }
     /// override this method for custom Persistent Store configure
     ///
     /// - Note: By default use `DocumentDirectory` for dataStore.
     /// - Note: By default use `NSMigratePersistentStoresAutomaticallyOption` and `NSInferMappingModelAutomaticallyOption` options
     ///
-    /// - Important: This method will fallback and restore when persistent store auto migration failed.
-    /// If you don't want to do that, override for custom
+    /// - Important: This method will fallback and restore when persistent store auto migration failed. If you don't want to do that, override for custom
     ///
     open func addStore() throws ->NSPersistentStore{
         let options = [
             NSMigratePersistentStoresAutomaticallyOption: true,
             NSInferMappingModelAutomaticallyOption: true
         ]
-        let docDir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()
-        let storeURL = URL(fileURLWithPath:"\(docDir)/\(name).db")
         do {
             if #available(iOS 15.0,macOS 12.0,tvOS 15.0, watchOS 8.0, *) {
                 return try psc.addPersistentStore(type: .sqlite, at: storeURL,options: options)
@@ -67,7 +62,7 @@ open class Coredb:@unchecked Sendable{
                 print("⚠️Persistent store migration failed.")
             }
             print("⚠️ Add Persistent store failed:",error.domain,"code:",error.code)
-            print("⚠️ Restore database !!! All data will be lost")
+            print("⚠️ Restore database !!! All data will be lose")
             // Fallback on Persistent store migration failed
             try FileManager.default.removeItem(at: storeURL)
             if #available(iOS 15.0,macOS 12.0,tvOS 15.0, watchOS 8.0,*) {
@@ -81,35 +76,10 @@ open class Coredb:@unchecked Sendable{
     open func print(_ items:Any... ,line:Int = #line ,file:String = #file){
         Swift.print("line:\(line)","file:\(file)",items,separator: "|")
     }
-    /// Automatically submit transaction updates and roll back in case of failure.
-    ///
-    ///         orm.transaction{handler in
-    ///             handler.moc.fetch(...)
-    ///             handler.moc.count(...)
-    ///             handler.delete(...)
-    ///             try handler.overlay(...)
-    ///             try handler.create(...)
-    ///         }
-    ///
-    @discardableResult
-    public func transaction<T:Sendable>(_ block: @Sendable @escaping (Handler) throws -> T)->Promise<T>{
-        Promise{resolve,reject in
-            self.moc.perform {
-                do{
-                    let result = try block(Handler(self))
-                    if self.moc.hasChanges{
-                        try self.moc.save()
-                    }
-                    resolve(result)
-                }catch{
-                    reject(error)
-                }
-            }
-        }
-    }
 }
 //MARK: public methods
 extension Coredb{
+    /// save context
     @discardableResult
     public func save() -> Promise<Void> {
         Promise{resolve,reject in
@@ -123,15 +93,14 @@ extension Coredb{
             }
         }
     }
+    /// flush some entity and save context
     @discardableResult
-    public func flush<E:Entityable>(_ entity:E,save:Bool = true)->Promise<Void>{
+    public func save<E:Entityable>(_ entity:E)->Promise<Void>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
                     try self._flush(entity)
-                    if save{
-                        try self._save()
-                    }
+                    try self._save()
                     resolve(())
                 }catch{
                     reject(error)
@@ -139,16 +108,45 @@ extension Coredb{
             }
         }
     }
+    /// flush some entities and save context
     @discardableResult
-    public func flush<E:Entityable>(_ entities:[E],save:Bool = true)->Promise<Void>{
+    public func save<E:Entityable>(_ entities:[E])->Promise<Void>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
                     try entities.forEach { obj in
                        try self._flush(obj)
                     }
-                    if save{
-                        try self._save()
+                    try self._save()
+                    resolve(())
+                }catch{
+                    reject(error)
+                }
+            }
+        }
+    }
+    /// flush some entity but not save context
+    @discardableResult
+    public func flush<E:Entityable>(_ entity:E)->Promise<Void>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    try self._flush(entity)
+                    resolve(())
+                }catch{
+                    reject(error)
+                }
+            }
+        }
+    }
+    /// flush some entities but not save context
+    @discardableResult
+    public func flush<E:Entityable>(_ entities:[E])->Promise<Void>{
+        Promise{resolve,reject in
+            self.moc.perform {
+                do{
+                    try entities.forEach { obj in
+                       try self._flush(obj)
                     }
                     resolve(())
                 }catch{
@@ -164,9 +162,9 @@ extension Coredb{
     /// - Returns: `Promise` handler for next async or sync opration
     /// - Note: This method will all auto save context
     @discardableResult
-    public func delete<E:Entityable>(_ entity:E?)->Promise<Void>{
-        guard let entity = entity?.reffer else {
-            return .init()
+    public func delete<E:Entityable>(_ entity:E)->Promise<Void>{
+        guard let entity = entity.reffer else {
+            return .init(())//Nothing happend, regard as success
         }
         return Promise{resolve,reject in
             self.moc.perform {
@@ -187,18 +185,15 @@ extension Coredb{
     /// - Returns: `Promise` handler for next async or sync opration
     /// - Note: This method will all auto save context
     @discardableResult
-    public func delete<E:Entityable>(_ entities:[E]?) -> Promise<Void> {
-        guard let entities else {
-            return .init()
+    public func delete<E:Entityable>(_ entities:[E]) -> Promise<Void> {
+        let objects = entities.compactMap{ $0.reffer }
+        if objects.isEmpty{
+            return .init(())// Nothing happend, regard as success
         }
         return Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    entities.forEach {
-                        if let reffer = $0.reffer{
-                            self.moc.delete(reffer)
-                        }
-                    }
+                    objects.forEach { self.moc.delete($0) }
                     try self._save()
                     resolve(())
                 }catch{
@@ -220,7 +215,6 @@ extension Coredb{
             self.moc.perform {
                 do{
                     let obj = type.init(input)
-//                    try obj.awake(from: input)
                     try self._flush(obj)
                     try self._save()
                     resolve(obj)
@@ -262,13 +256,11 @@ extension Coredb{
     /// - Returns: `Promise` handler for next async or sync opration
     /// - Note: This method will all auto save context
     ///
-    public func query<E:Entityable>(one type:E.Type = E.self,id:E.ID) -> Promise<E?>{
+    public func query<E:Entityable>(one type:E.Type = E.self,id:E.ID) -> Promise<E>{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    let result = try self._query(one: type, id: id)
-                    try self._save()
-                    resolve(result)
+                    resolve(try self._query(one: type, id: id))
                 }catch{
                     reject(error)
                 }
@@ -289,9 +281,7 @@ extension Coredb{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    let results = try self._query(type, where: `where`, page: page, orderby: orderby)
-                    try self._save()
-                    resolve(results)
+                    resolve(try self._query(type, where: `where`, page: page, orderby: orderby))
                 }catch{
                     reject(error)
                 }
@@ -310,9 +300,7 @@ extension Coredb{
         Promise{resolve,reject in
             self.moc.perform {
                 do{
-                    let count = try self._count(for: type,where: `where`)
-                    try self._save()
-                    resolve(count)
+                    resolve(try self._count(for: type,where: `where`))
                 }catch{
                     reject(error)
                 }
@@ -373,6 +361,7 @@ extension Coredb{
         }
     }
     /// Same as  `insert(_:inputs:)` but `return Void`
+    /// - SeeAlso: `insert(_:inputs:)`
     @discardableResult
     public func insert0<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])->Promise<Void>{
         Promise{resolve,reject in
@@ -388,6 +377,7 @@ extension Coredb{
         }
     }
     /// Same as  `insert(_:inputs:)` but `return ids`
+    /// - SeeAlso: `insert(_:inputs:)`
     @discardableResult
     public func insert1<E:Entityable>(_ type:E.Type = E.self,inputs:[[String:Sendable]])-> Promise<[NSManagedObjectID]>{
         Promise{resolve,reject in
@@ -443,5 +433,13 @@ extension Coredb{
                 }
             }
         }
+    }
+}
+extension Coredb{
+    public enum Error:Swift.Error{
+        case modelNotFound
+        case entityNotFound
+        case objectNotExsit(id:String)
+        case invalidEntityID
     }
 }

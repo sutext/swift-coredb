@@ -83,17 +83,18 @@ extension Set:Fieldable where Element:Fieldable{}
 extension Array:Fieldable where Element:Fieldable{}
 extension Dictionary:Fieldable where Value:Fieldable,Key:Codable{}
 
-/// Use RawValue Type in the `xcdatamodeld`
-public extension Fieldable where Self:RawRepresentable{
-    @inlinable func writein() -> Any?{ self.rawValue }
+/// - Note: Use the RawValue type (such as `Int` `String` ...) in the `xcdatamodeld`
+public extension Fieldable where Self:RawRepresentable,RawValue:Fieldable{
+    @inlinable func writein() -> Any?{ self.rawValue.writein() }
     @inlinable static func readout(_ data:Any) -> Self?{
-        if let raw = data as? Self.RawValue{
+        if let raw = RawValue.readout(data){
             return Self.init(rawValue: raw)
         }
         return nil
     }
 }
-///Use BinaryData type in the `xcdatamodeld`
+/// Any other types are stored using json encoding
+///- Note: Use `BinaryData` type in the `xcdatamodeld`
 public extension Fieldable{
     @inlinable func writein() -> Any? { try? JSONEncoder().encode(self) }
     @inlinable static func readout(_ data: Any) -> Self? {

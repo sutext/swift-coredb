@@ -23,15 +23,16 @@ extension Coredb{
             throw error
         }
     }
-    func _query<E:Entityable>(one type:E.Type,id:E.ID)throws->E?{
+    func _query<E:Entityable>(one type:E.Type,id:E.ID)throws->E{
         if id.string.isEmpty{
-            return nil
+            throw Error.invalidEntityID
         }
         let request = type.fetchRequest()
         request.predicate = NSPredicate(format:"id == %@",id.string)
-        request.fetchLimit = 2
-        guard let obj = try self.moc.fetch(request).first else{
-            return nil
+        request.fetchLimit = 1
+        let objs = try self.moc.fetch(request)
+        guard let obj = objs.first else{
+            throw Error.objectNotExsit(id:id.string)
         }
         let result = type.init(nil)
         result.attach(obj)
@@ -138,7 +139,6 @@ extension Coredb{
         let set:NSMutableOrderedSet = []
         for input in inputs {
             let obj = type.init(input)
-//            try obj.awake(from: input)
             try self._flush(obj)
             set.add(obj)
         }
@@ -149,7 +149,7 @@ extension Coredb{
     }
     func _flush<E:Entityable>(_ entity:E) throws{
         if entity.id.string.isEmpty {
-            throw DBError.invalidID
+            throw Error.invalidEntityID
         }
         if entity.reffer  == nil{
             let request = E.fetchRequest()
@@ -170,7 +170,7 @@ extension Coredb{
 extension Coredb{
     public struct Orderby:Sendable{
         public typealias Element = (key:String,ascending:Bool)
-        private let elements:[Element]
+        public var elements:[Element]
         public init(_ key: String, ascending: Bool) {
             self.elements = [(key,ascending)]
         }
@@ -190,16 +190,16 @@ extension Coredb{
         }
     }
     public struct Pager:Sendable{
-        public let index:Int ///page index
-        public let size:Int /// page size
+        public var index:Int ///page index
+        public var size:Int /// page size
         public init(index: Int, size: Int) {
             self.index = index
             self.size = size
         }
     }
     public struct Where:Sendable{
-        public let format:String
-        public let args:[Sendable]
+        public var format:String
+        public var args:[Sendable]
         public init(_ format: String, _ args: Sendable...) {
             self.format = format
             self.args = args

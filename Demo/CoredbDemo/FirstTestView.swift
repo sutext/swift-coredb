@@ -21,6 +21,7 @@ struct ItemView:View {
             Text("working:\(model.working?.description ?? "")")
             Text("school:\(model.school?.name ?? "")")
             Text("schools count:\(model.schools.count)")
+            Text("parteners count:\(model.parteners.count)")
             Button (action:modify){
                 Text("修改名字")
             }
@@ -68,7 +69,7 @@ struct FirstTestView: View ,Sendable{
     }
     func addData(){
         let u = UserObject(randomUser())
-        orm.flush(u).then { _ in
+        orm.save(u).then { _ in
             await append(u)
         }
         let user = self.randomUser()
